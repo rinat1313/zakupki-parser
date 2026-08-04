@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/charmap"
 )
 
 // SupportedExtensions — форматы, которые умеем гнать в txt.
@@ -142,6 +145,7 @@ func ToTextOut(sourcePath, txtPath string) Result {
 			res.Error = err.Error()
 			return res
 		}
+		b = decodeToUTF8(b)
 		if err := os.WriteFile(txtAbs, b, 0o644); err != nil {
 			res.Error = err.Error()
 			return res
@@ -157,6 +161,7 @@ func ToTextOut(sourcePath, txtPath string) Result {
 			res.Error = err.Error()
 			return res
 		}
+		b = decodeToUTF8(b)
 		if err := os.WriteFile(txtAbs, b, 0o644); err != nil {
 			res.Error = err.Error()
 			return res
@@ -244,12 +249,12 @@ func convertLibreOffice(sourcePath, finalTxtPath, ext string) error {
 		return err
 	}
 
-	filter := "txt:Text"
+	filter := "txt:Text (encoded):UTF8"
 	wantExt := ".txt"
 	switch ext {
 	case ".xls", ".xlsx", ".ods":
-		// Явный фильтр Calc: без calc-пакета LO пишет 0 файлов.
-		filter = `csv:Text - txt - csv (StarCalc)`
+		// FilterOptions: 44=comma, 34=quote, 76=UTF-8 — иначе LO в Docker пишет ANSI и кириллица → ???
+		filter = `csv:Text - txt - csv (StarCalc):44,34,76,1`
 		wantExt = ".csv"
 	}
 
@@ -265,6 +270,11 @@ func convertLibreOffice(sourcePath, finalTxtPath, ext string) error {
 	}
 	cmd := exec.Command(so, args...)
 	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(),
+		"LANG=C.UTF-8",
+		"LC_ALL=C.UTF-8",
+		"LC_CTYPE=C.UTF-8",
+	)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -277,7 +287,23 @@ func convertLibreOffice(sourcePath, finalTxtPath, ext string) error {
 		return fmt.Errorf("%w; soffice out: %s", err, strings.TrimSpace(buf.String()))
 	}
 	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	data = decodeToUTF8(data)
+	if looksLikeEncodingLoss(data) {
+		return fmt.Errorf("libreoffice produced encoding-loss text (Cyrillic became ?); check UTF-8 filter/locale")
+	}
 	return os.WriteFile(finalTxtPath, data, 0o644)
+}
+
+// decodeToUTF8 нормализует текст в UTF-8 (BOM / Windows-1251 для старых CSV).
+func decodeToUTF8(b []byte) []byte {
+	b = bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
+	if utf8.Valid(b) {
+		return b
+	}
+	if s, err := charmap.Windows1251.NewDecoder().Bytes(b); err == nil && utf8.Valid(s) {
+		return s
+	}
+	return b
 }
 
 func readConvertedOutput(outDir, preferred, wantExt string) ([]byte, error) {

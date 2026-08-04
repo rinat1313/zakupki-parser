@@ -11,11 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     poppler-utils tesseract-ocr tesseract-ocr-rus \
     libreoffice-writer-nogui libreoffice-calc-nogui \
-    unar fonts-dejavu-core fonts-liberation \
+    unar fonts-dejavu-core fonts-liberation locales \
+  && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /out/parser-service /usr/local/bin/parser-service
 ENV HTTP_ADDR=:8091
+ENV SOFFICE_PATH=/usr/bin/soffice
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 EXPOSE 8091
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 CMD curl -fsS http://127.0.0.1:8091/health || exit 1
 CMD ["parser-service"]
