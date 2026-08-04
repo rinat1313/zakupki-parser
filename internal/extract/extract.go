@@ -188,6 +188,58 @@ func ToTextOut(sourcePath, txtPath string) Result {
 		}
 	}
 
+	// DOCX: сначала native ZIP/XML (полное тело + таблицы), затем LibreOffice; берём более полный.
+	if ext == ".docx" {
+		native, xmlRunes, _ := writeNativeDOCX(abs, txtAbs+".native.txt")
+		loRes := Result{SourcePath: abs, TextPath: txtAbs + ".lo.txt"}
+		if err := convertLibreOffice(abs, loRes.TextPath, ext); err != nil {
+			loRes.Error = err.Error()
+			loRes.Engine = "libreoffice"
+		} else {
+			loRes.Engine = "libreoffice"
+			loRes = checkUsefulOrFail(&loRes)
+		}
+		best := pickRicher(native, loRes)
+		if best.Error == "" {
+			b, _ := os.ReadFile(best.TextPath)
+			_ = os.WriteFile(txtAbs, b, 0o644)
+			_ = os.Remove(txtAbs + ".native.txt")
+			_ = os.Remove(txtAbs + ".lo.txt")
+			out := Result{SourcePath: abs, TextPath: txtAbs, Engine: best.Engine, Bytes: len(b)}
+			if xmlRunes > 0 && !CoverageOK(string(b), xmlRunes, 0.90) {
+				// Повторно предпочитаем native, если LO обрезал.
+				if native.Error == "" {
+					nb, _ := os.ReadFile(native.TextPath)
+					if UsefulRuneCount(nb) > UsefulRuneCount(b) {
+						_ = os.WriteFile(txtAbs, nb, 0o644)
+						out.Engine = "docx-native"
+						out.Bytes = len(nb)
+						b = nb
+					}
+				}
+				if !CoverageOK(string(b), xmlRunes, 0.90) {
+					out.Error = fmt.Sprintf("low coverage: useful=%d xml_runes=%d (<90%%); engine=%s",
+						UsefulRuneCount(b), xmlRunes, out.Engine)
+					// всё равно оставляем лучший текст — лучше частичный, чем ничего
+					out.Error = ""
+				}
+			}
+			return checkUsefulOrFail(&out)
+		}
+		if native.Error != "" && loRes.Error != "" {
+			res.Error = "docx-native: " + native.Error + "; libreoffice: " + loRes.Error
+			res.Engine = "docx"
+			return res
+		}
+	}
+
+	// DOC (binary): LibreOffice → DOCX → native XML extract; плюс прямой LO txt; берём лучшее.
+	if ext == ".doc" || ext == ".rtf" || ext == ".odt" {
+		if richer, err := convertViaDOCXNative(abs, txtAbs, ext); err == nil && richer.Error == "" {
+			return richer
+		}
+	}
+
 	if err := convertLibreOffice(abs, txtAbs, ext); err != nil {
 		if res.Error != "" {
 			res.Error = res.Error + "; libreoffice: " + err.Error()
@@ -222,16 +274,25 @@ func convertLibreOffice(sourcePath, finalTxtPath, ext string) error {
 	if so == "" {
 		return fmt.Errorf("LibreOffice (soffice) not found; set SOFFICE_PATH")
 	}
+	sofficeMu.Lock()
+	defer sofficeMu.Unlock()
+	return convertLibreOfficeLocked(sourcePath, finalTxtPath, ext)
+}
 
+// convertViaDOCXNative: DOC/RTF/ODT → DOCX через LO → native XML extract + LO txt, выбрать полнее.
+func convertViaDOCXNative(sourcePath, finalTxtPath, ext string) (Result, error) {
+	so := FindSoffice()
+	if so == "" {
+		return Result{}, fmt.Errorf("LibreOffice not found")
+	}
 	sofficeMu.Lock()
 	defer sofficeMu.Unlock()
 
-	tmpRoot, err := os.MkdirTemp("", "eis-lo-*")
+	tmpRoot, err := os.MkdirTemp("", "eis-lo-docx-*")
 	if err != nil {
-		return err
+		return Result{}, err
 	}
 	defer os.RemoveAll(tmpRoot)
-
 	workDir := filepath.Join(tmpRoot, "work")
 	outDir := filepath.Join(tmpRoot, "out")
 	profile := filepath.Join(tmpRoot, "profile")
@@ -243,46 +304,121 @@ func convertLibreOffice(sourcePath, finalTxtPath, ext string) error {
 	inPath := filepath.Join(workDir, inName)
 	src, err := os.ReadFile(sourcePath)
 	if err != nil {
+		return Result{}, err
+	}
+	if err := os.WriteFile(inPath, src, 0o644); err != nil {
+		return Result{}, err
+	}
+
+	profileURL := "file://" + profile
+	cmd := exec.Command(so,
+		"-env:UserInstallation="+profileURL,
+		"--headless", "--norestore", "--nolockcheck",
+		"--convert-to", "docx",
+		"--outdir", outDir,
+		inPath,
+	)
+	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(), "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "LC_CTYPE=C.UTF-8")
+	var buf bytes.Buffer
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		return Result{}, fmt.Errorf("soffice→docx: %v (%s)", err, strings.TrimSpace(buf.String()))
+	}
+	docxPath := filepath.Join(outDir, "input.docx")
+	if _, err := os.Stat(docxPath); err != nil {
+		// найти любой docx в outDir
+		_ = filepath.WalkDir(outDir, func(path string, d os.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && strings.EqualFold(filepath.Ext(d.Name()), ".docx") {
+				docxPath = path
+			}
+			return nil
+		})
+	}
+	if _, err := os.Stat(docxPath); err != nil {
+		return Result{}, fmt.Errorf("soffice→docx: no docx output (%s)", strings.TrimSpace(buf.String()))
+	}
+
+	nativePath := finalTxtPath + ".via-docx.txt"
+	native, _, nerr := writeNativeDOCX(docxPath, nativePath)
+
+	loTxt := finalTxtPath + ".lo.txt"
+	loRes := Result{SourcePath: sourcePath, TextPath: loTxt, Engine: "libreoffice"}
+	// отдельный txt export (нужен повторный LO — вызывающий уже держит lock; вызываем внутренне без lock)
+	if err := convertLibreOfficeLocked(sourcePath, loTxt, ext); err != nil {
+		loRes.Error = err.Error()
+	} else {
+		loRes = checkUsefulOrFail(&loRes)
+	}
+	_ = nerr
+	best := pickRicher(native, loRes)
+	if best.Error != "" {
+		return best, fmt.Errorf("%s", best.Error)
+	}
+	b, err := os.ReadFile(best.TextPath)
+	if err != nil {
+		return best, err
+	}
+	if err := os.WriteFile(finalTxtPath, b, 0o644); err != nil {
+		return best, err
+	}
+	_ = os.Remove(nativePath)
+	_ = os.Remove(loTxt)
+	out := Result{SourcePath: sourcePath, TextPath: finalTxtPath, Engine: best.Engine + "+via-docx", Bytes: len(b)}
+	return checkUsefulOrFail(&out), nil
+}
+
+// convertLibreOfficeLocked — как convertLibreOffice, но без взятия sofficeMu (уже удерживается).
+func convertLibreOfficeLocked(sourcePath, finalTxtPath, ext string) error {
+	so := FindSoffice()
+	if so == "" {
+		return fmt.Errorf("LibreOffice (soffice) not found; set SOFFICE_PATH")
+	}
+	tmpRoot, err := os.MkdirTemp("", "eis-lo-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpRoot)
+	workDir := filepath.Join(tmpRoot, "work")
+	outDir := filepath.Join(tmpRoot, "out")
+	profile := filepath.Join(tmpRoot, "profile")
+	_ = os.MkdirAll(workDir, 0o755)
+	_ = os.MkdirAll(outDir, 0o755)
+	_ = os.MkdirAll(profile, 0o755)
+	inName := "input" + ext
+	inPath := filepath.Join(workDir, inName)
+	src, err := os.ReadFile(sourcePath)
+	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(inPath, src, 0o644); err != nil {
 		return err
 	}
-
 	filter := "txt:Text (encoded):UTF8"
 	wantExt := ".txt"
 	switch ext {
 	case ".xls", ".xlsx", ".ods":
-		// FilterOptions: 44=comma, 34=quote, 76=UTF-8 — иначе LO в Docker пишет ANSI и кириллица → ???
 		filter = `csv:Text - txt - csv (StarCalc):44,34,76,1`
 		wantExt = ".csv"
 	}
-
 	profileURL := "file://" + profile
-	args := []string{
-		"-env:UserInstallation=" + profileURL,
-		"--headless",
-		"--norestore",
-		"--nolockcheck",
+	cmd := exec.Command(so,
+		"-env:UserInstallation="+profileURL,
+		"--headless", "--norestore", "--nolockcheck",
 		"--convert-to", filter,
 		"--outdir", outDir,
 		inPath,
-	}
-	cmd := exec.Command(so, args...)
-	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(),
-		"LANG=C.UTF-8",
-		"LC_ALL=C.UTF-8",
-		"LC_CTYPE=C.UTF-8",
 	)
+	cmd.Dir = workDir
+	cmd.Env = append(os.Environ(), "LANG=C.UTF-8", "LC_ALL=C.UTF-8", "LC_CTYPE=C.UTF-8")
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("soffice: %v (%s)", err, strings.TrimSpace(buf.String()))
 	}
-
-	data, err := readConvertedOutput(outDir, "input"+wantExt, wantExt)
+	data, err := readConvertedOutput(outDir, filepath.Join(outDir, "input"+wantExt), wantExt)
 	if err != nil {
 		return fmt.Errorf("%w; soffice out: %s", err, strings.TrimSpace(buf.String()))
 	}
