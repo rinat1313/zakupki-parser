@@ -1,0 +1,50 @@
+КАРТА HTML — 223-ФЗ
+==================
+Фикстуры: ../../html/223 фз/
+Детали: ../../result/11,12,13,06
+
+
+1. ОБЩАЯ ИНФОРМАЦИЯ
+   Файл: Карточка закупки 223 фз.html
+   URL: /epz/order/notice/notice223/common-info.html?noticeGuid=&regNumber=
+
+   Номер/статус/цена → .registry-entry__header-mid__* , .price-block__value
+   Поля              → .common-text__title → .common-text__value
+   Заказчик          → a[href*="/epz/organization/view223/"]
+   ИНН/КПП/ОГРН      → .common-text__value--gray + соседний value
+   GUID              → из query noticeGuid / ссылок вкладок
+
+
+2. ЛОТЫ
+   Файл: Карточка закупки список лотов 223 фз.html
+   URL: .../lot-list.html?purchaseNoticeNumber=&noticeGuid=
+   Строка лота → таблица .table
+   lotGuid     → a[href*="lot-info.html"][href*="lotGuid="]
+
+
+3. ДОКУМЕНТЫ
+   Файл: Карточка закупки документы 223 фз.html
+   URL: .../documents.html?purchaseNoticeNumber=&noticeGuid=
+   Блок     → section.card-attachments .card-attachments__block > .title
+   Скачать  → a[href*="/223/filestore/"][href*="uid="]
+   Имя файла → атрибут tip/title у ссылки (полный .doc/.docx)
+
+
+4. ИЗМЕНЕНИЯ / ПРОТОКОЛЫ / ДОГОВОРЫ
+   Файлы: изменения и разьяснения; итоговый протокол; сведения о договорах
+   Пусто часто = «Сведения отсутствуют»
+   Договоры live: AJAX .../contract-info-list.html?purchaseNoticeNumber=
+
+
+5. ЖУРНАЛ ЗАКУПКИ
+   Файл: Карточка закупки журнал событий 223 фз.html
+   URL: .../event-journal.html?purchaseNoticeNumber=
+   Строки → #event tr.table__row
+
+
+6. ОРГАНИЗАЦИЯ
+   Файлы: Регистрационные данные организации * 223 фз.html
+   URL: /epz/organization/view223/info.html?agencyId=&tab=info|other|journal
+   Поля info/other → .section__title / .section__info (как 44 org!)
+   Журнал org → ТОЛЬКО AJAX list.html?sid=&entityId= (в HTML строк может не быть)
+   ИКО → AJAX iko-list.html?agencyId=

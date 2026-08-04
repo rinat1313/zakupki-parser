@@ -1,0 +1,56 @@
+РАБОТА СО СТРУКТУРАМИ (models/)
+==============================
+
+1. НАЗНАЧЕНИЕ
+-------------
+models — только данные (DTO). Без HTTP и без goquery.
+Парсер (internal/parser) заполняет структуры и отдаёт наружу.
+
+
+2. СООТВЕТСТВИЕ СТРАНИЦА → STRUCT
+--------------------------------
+44 common-info     → Notice44 (+ []PurchaseObject44)
+44 documents       → NoticeDocuments{Law:44}
+44 event-journal   → []NoticeEvent
+44 supplier-results→ Notice44Result
+44 organization    → Organization44
+
+223 common-info    → Notice223
+223 lot-list       → []Lot223
+223 documents      → NoticeDocuments{Law:223, GUID:...}
+223 event-journal  → []NoticeEvent
+223 organization   → Organization223
+
+pricereq common-info / search → PriceRequest (+ []PriceRequestItem)
+pricereq docs                  → DocumentFile (filestore, как 44)
+pricereq organization          → Organization44 (тот же /epz/organization/)
+
+
+3. НОРМАЛИЗАЦИЯ
+---------------
+Money: вырезать \u00a0, «₽», пробелы; запятую → точку; Currency по умолчанию RUB.
+Dated: парсить DD.MM.YYYY[ HH:MM]; TZLabel из «(МСК+5)» / «(МСК-1)».
+ID: TrimSpace; убрать префикс «№».
+
+
+4. АЛИАСЫ ЗАКАЗЧИКА
+-------------------
+После парса notice и org заполнять CustomerIDAlias:
+  44: OrganizationCode + OrganizationID + INN
+  223: AgencyID + INN
+Канонический ключ для джойнов — ИНН (если известен).
+
+
+5. ПУСТЫЕ ЗНАЧЕНИЯ
+------------------
+«Информация отсутствует» / «Сведения отсутствуют» → пустой slice / zero value,
+не error. Отсутствие вкладки supplier-results → Notice44Result не создавать.
+
+
+6. ДАЛЬНЕЙШИЙ КОД
+-----------------
+internal/parser/fz44/parse_notice.go    — goquery → Notice44
+internal/parser/fz223/parse_notice.go   — goquery → Notice223
+internal/parser/pricereq/notice.go      — goquery → PriceRequest
+pkg/eis/client.go                       — GET + retry
+cmd/parser/main.go                      — CLI: файл/URL → JSON

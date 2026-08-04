@@ -1,0 +1,67 @@
+ИНСТРУКЦИЯ ДЛЯ AI-АГЕНТА (Go-парсер ЕИС)
+=======================================
+Проект: парсинг zakupki.gov.ru → структуры → СУБД.
+Язык: Go. Образцы: ../html/44 фз/, ../html/223 фз/
+Гайды: ../result/ (00–13). Этот файл — краткий контекст, не дублирует всё.
+
+
+ЖЁСТКИЕ ПРАВИЛА
+---------------
+1. Весь код (Go, скрипты запуска парсера, tenders.csv) — ТОЛЬКО в DataCode/.
+2. Не изменять ../html/ и ../over/.
+3. Не переиспользовать селекторы 44 на страницах 223 notice (и наоборот).
+4. Два парсера: ParseNotice44 / ParseNotice223 (общий только HTTP, money, dates).
+5. Поля извлекать по подписи (label→value), не по порядковому номеру span.
+6. Filestore:
+   44 → /44fz/filestore/.../priz/file.html?uid=
+   223 → /223/filestore/.../fz223/file.html?uid=
+7. Rate limit: ≤3 concurrent, retry на 429 и пустой body.
+8. Тесты: на файлах из html/44 фз и html/223 фз (go embed или testdata).
+
+
+ЧТО УЖЕ ЕСТЬ
+------------
+models/*.go — целевые структуры (Notice44 / Notice223 / Org*)
+html_map/*.txt — куда смотреть в DOM
+internal/parser/fz44 — парсер карточки 44
+internal/parser/fz223 — парсер карточки 223 (+ docs, lots, org)
+pkg/eis — HTTP-клиент + URL 44/223
+cmd/parser — CLI: -law 44|223, data/tenders*.csv → result/{id}/
+../result/06, 09–13 — URL и селекторы
+
+
+МИНИМАЛЬНЫЙ ПОТОК
+-----------------
+Search results → Notice → Documents (download) → Events
+→ Organization → (44) SupplierResults если вкладка есть
+→ (223) Lots + Contracts AJAX
+
+Выгрузка всегда в DataCode/result/{regNumber}/
+  origin/       — оригиналы документов
+  valid_doc/    — .txt для LLM
+  html/         — сырые HTML страниц
+  valid_info/   — tender.json, customer.json, files.json, export.json (+ lots.json для 223)
+  over_info/    — texts.json, failed_texts.json, error.json
+
+
+
+БИБЛИОТЕКИ (РЕКОМЕНДАЦИЯ)
+-------------------------
+HTML: github.com/PuerkitoBio/goquery
+HTTP: net/http + свой Client с backoff
+БД: database/sql или pgx (позже)
+
+
+ИМЕНОВАНИЕ ПАКЕТОВ
+------------------
+module: см. go.mod (eisparser или аналогично)
+internal/parser/fz44
+internal/parser/fz223
+models — DTO без логики парсинга
+
+
+КОГДА НЕ ХВАТАЕТ ДАННЫХ
+----------------------
+Сначала result/ и html_map/. Не парсить заново корневые html/*.html
+из реестра result/08, если они уже ПРОАНАЛИЗИРОВАНЫ.
+Новые HTML в html/44 фз|223 фз — можно читать как фикстуры.
