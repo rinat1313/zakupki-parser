@@ -1,0 +1,51 @@
+КАРТА HTML — 44-ФЗ
+=================
+Фикстуры: ../../html/44 фз/
+Детали: ../../result/03,04,05,09,10,06
+
+
+1. ИЗВЕЩЕНИЕ common-info
+   Файл: Сведения закупки 44 фз.html
+   URL:  /epz/order/notice/ea20/view/common-info.html?regNumber=
+
+   Где брать:
+   Номер, статус, цена     → .cardMainInfo__purchaseLink / __state / __content.cost
+   Объект, заказчик        → .cardMainInfo__content + подписи
+   Любое поле по подписи   → .blockInfo__section: .section__title → .section__info
+   НМЦК                    → подпись «Начальная (максимальная) цена контракта»
+   ИКЗ                     → подпись с «ИКЗ»
+   Таблица ТРУ             → #purchaseObjectTruTable1 table.tableBlock
+   Org link                → a[href*="organizationCode="]
+
+
+2. ДОКУМЕНТЫ
+   Файл: Сведения закупки документы 44 фз.html
+   URL:  .../documents.html?regNumber=
+
+   Группа                → h2.blockInfo__title
+   Имя файла             → .attachment a[title] или текст + title
+   Скачать               → a[href*="/44fz/filestore/"][href*="uid="]
+   Редакция              → рядом «Действующая» / «Недействующая»
+
+
+3. ЖУРНАЛ
+   Файл: Сведения закупки журнал событий 44 фз.html
+   URL:  .../event-journal.html?regNumber=
+   Строки → table#event (или .displaytagTable) tr.table__row td
+
+
+4. РЕЗУЛЬТАТЫ ПОСТАВЩИКА
+   Файл: Сведения закупки результаты определения поставщика 44 фз.html
+   URL:  .../supplier-results.html?regNumber=
+   Протокол → a[href*="protocol-main-info.html"]
+   Участники → #supplier-def-result-participant-table-
+   Вкладки списка → .tabsNav__item (вкладка может отсутствовать)
+
+
+5. ОРГАНИЗАЦИЯ
+   Файлы: Регистрационные данные организации * 44 фз.html
+   URL: /epz/organization/view/info.html?organizationCode=&tab=info|other
+   ИНН/КПП/ОГРН → #tab-info .section__title/.section__info
+   УУН/полномочия → #tab-other
+   Контакты → блок ПОСЛЕ вкладок (не внутри #tab-*)
+   Парсить оба #tab-info и #tab-other даже если один d-none
