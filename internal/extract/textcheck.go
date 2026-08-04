@@ -43,6 +43,10 @@ func looksLikeEncodingLoss(b []byte) bool {
 			letters++
 		}
 	}
+	// Сплошные ??? вместо текста (букв почти нет).
+	if q >= 40 && cyr == 0 && letters < q/4 {
+		return true
+	}
 	if letters < 30 {
 		return false
 	}
