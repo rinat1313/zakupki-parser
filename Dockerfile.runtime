@@ -10,10 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unar \
     fonts-dejavu-core \
     fonts-liberation \
+    locales \
+  && sed -i 's/^# *en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
+  && locale-gen \
   && rm -rf /var/lib/apt/lists/*
 COPY bin/parser-service /usr/local/bin/parser-service
 ENV HTTP_ADDR=:8091
 ENV SOFFICE_PATH=/usr/bin/soffice
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 EXPOSE 8091
 HEALTHCHECK --interval=10s --timeout=5s --retries=10 CMD curl -fsS http://127.0.0.1:8091/health || exit 1
 CMD ["parser-service"]

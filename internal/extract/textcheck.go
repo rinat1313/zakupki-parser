@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // MinUsefulRunes — ниже этого после очистки считаем текст «пустым» (скан / сбой).
@@ -23,6 +24,36 @@ func UsefulRuneCount(b []byte) int {
 		n++
 	}
 	return n
+}
+
+// looksLikeEncodingLoss — кириллица потеряна (LibreOffice ANSI → ???).
+func looksLikeEncodingLoss(b []byte) bool {
+	if !utf8.Valid(b) {
+		return true
+	}
+	q, letters, cyr := 0, 0, 0
+	for _, r := range string(b) {
+		switch {
+		case r == '?' || r == '\uFFFD':
+			q++
+		case unicode.Is(unicode.Cyrillic, r):
+			cyr++
+			letters++
+		case unicode.IsLetter(r):
+			letters++
+		}
+	}
+	if letters < 30 {
+		return false
+	}
+	// Много «?» при почти нулевой кириллице — типичный LO без UTF-8.
+	if cyr == 0 && q*2 > letters {
+		return true
+	}
+	if q > 40 && q > cyr*3 {
+		return true
+	}
+	return false
 }
 
 // IsEmptyText — файл почти пустой / только form-feed.
@@ -60,6 +91,10 @@ func checkUsefulOrFail(res *Result) Result {
 		markEmpty(res, fmt.Sprintf(
 			"empty/unreadable text (raw=%d bytes, useful_runes=%d < %d)%s",
 			len(b), useful, MinUsefulRunes, detailHint(res.Engine)))
+		return *res
+	}
+	if looksLikeEncodingLoss(b) {
+		markEmpty(res, "encoding loss: Cyrillic became '?'; re-convert with UTF-8 LibreOffice filter")
 		return *res
 	}
 	res.Error = ""
