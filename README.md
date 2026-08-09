@@ -12,11 +12,16 @@ Go-сервис парсинга закупок с **разных торговы
 |-------|------|----------|
 | GET | `/health` | liveness |
 | POST | `/api/v1/fetch` | `{ "reg_number", "source_site" }` → карточка + документы + тексты |
+| GET | `/swagger/` | Swagger UI |
+| GET | `/openapi.yaml` | OpenAPI 3 спецификация |
+
+Спецификация также лежит в [`docs/openapi.yaml`](docs/openapi.yaml) (копия для embed — `cmd/service/swagger/openapi.yaml`).
 
 Порт по умолчанию: **8091**.
 
 ```bash
 go run ./cmd/service
+# UI: http://127.0.0.1:8091/swagger/
 curl -s -X POST http://127.0.0.1:8091/api/v1/fetch \
   -H 'Content-Type: application/json' \
   -d '{"reg_number":"0334500000125000001","source_site":"https://zakupki.gov.ru"}'

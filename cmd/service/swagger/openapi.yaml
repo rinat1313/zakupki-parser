@@ -1,0 +1,393 @@
+openapi: 3.0.3
+info:
+  title: zakupki-parser API
+  description: |
+    HTTP API сервиса парсинга закупок с торговых площадок.
+
+    Основной источник — ЕИС (`zakupki.gov.ru`): извещения 44-ФЗ, 223-ФЗ и запросы цен.
+    Для остальных ЭТП (tektorg, mos, roseltorg и др.) зарегистрированы stub-адаптеры;
+    при отсутствии реализации ЕИС пайплайн вернёт ошибку анализа.
+
+    Сервис:
+    1. Определяет тип закупки по реестровому номеру
+    2. Парсит карточку и организацию заказчика
+    3. Скачивает документы (включая архивы)
+    4. Извлекает текст для LLM (LibreOffice / pdftotext / OCR)
+  version: 1.0.0
+  contact:
+    name: zakupki-parser
+    url: https://github.com/rinat1313/zakupki-parser
+
+servers:
+  - url: http://127.0.0.1:8091
+    description: Локальный запуск (переменная HTTP_ADDR, по умолчанию :8091)
+
+tags:
+  - name: health
+    description: Проверка живости сервиса
+  - name: fetch
+    description: Сбор карточки закупки и документов
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness / список адаптеров
+      operationId: getHealth
+      responses:
+        "200":
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                service: zakupki-parser
+                adapters:
+                  - zakupki.gov.ru (eis)
+                  - tektorg.ru
+                  - zakupki.mos.ru
+                  - roseltorg.ru
+                  - sberbank-ast.ru
+                  - rts-tender.ru
+                  - etp.ets.ru
+                  - fabrikant.ru
+                  - etp.gpb.ru
+
+  /api/v1/fetch:
+    post:
+      tags: [fetch]
+      summary: Загрузить и разобрать закупку
+      description: |
+        Принимает реестровый номер и опциональный URL/хост площадки.
+
+        Порядок резолва:
+        1. Попытка сбора на ЕИС по `reg_number`
+        2. Если ЕИС не удался — адаптер по host из `source_site`
+      operationId: fetchTender
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FetchRequest"
+            examples:
+              eis44:
+                summary: Извещение ЕИС (44-ФЗ)
+                value:
+                  reg_number: "0334500000125000001"
+                  source_site: "https://zakupki.gov.ru"
+              eis223:
+                summary: Извещение ЕИС (223-ФЗ)
+                value:
+                  reg_number: "32312323655"
+                  source_site: "https://zakupki.gov.ru"
+              otherEtp:
+                summary: Другая площадка (stub)
+                value:
+                  reg_number: "0000000000000000001"
+                  source_site: "https://tektorg.ru"
+      responses:
+        "200":
+          description: |
+            Ответ всегда с HTTP 200 при валидном JSON-теле.
+            Успех/неуспех анализа смотрите в полях `failed` и `message`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FetchResponse"
+              examples:
+                success:
+                  summary: Успешный сбор с ЕИС
+                  value:
+                    reg_number: "0334500000125000001"
+                    source_site: "https://zakupki.gov.ru"
+                    source_used: eis
+                    failed: false
+                    message: ""
+                    result:
+                      reg_number: "0334500000125000001"
+                      law: "44"
+                      object_name: "Поставка товаров"
+                      status: "Подача заявок"
+                      nmck: 1000000.0
+                      currency: RUB
+                      documents: []
+                failed:
+                  summary: Не удалось проанализировать
+                  value:
+                    reg_number: "000"
+                    source_site: "https://tektorg.ru"
+                    source_used: "adapter:tektorg.ru"
+                    failed: true
+                    message: "eis: not found; tektorg.ru: tektorg: планируется SOAP API"
+                    result: null
+        "400":
+          description: Некорректное тело запроса
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                badJson:
+                  value:
+                    error: "unexpected EOF"
+                missingReg:
+                  value:
+                    error: "reg_number required"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, adapters]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: zakupki-parser
+        adapters:
+          type: array
+          items:
+            type: string
+          description: Известные хосты/адаптеры (ЕИС + stubs)
+
+    FetchRequest:
+      type: object
+      required: [reg_number]
+      properties:
+        reg_number:
+          type: string
+          description: Реестровый номер закупки / запроса цен
+          example: "0334500000125000001"
+        source_site:
+          type: string
+          description: |
+            URL или хост исходной площадки.
+            Для ЕИС — `https://zakupki.gov.ru`.
+            Для других ЭТП используется после неудачи ЕИС.
+          example: "https://zakupki.gov.ru"
+
+    FetchResponse:
+      type: object
+      required: [reg_number, source_used, failed]
+      properties:
+        reg_number:
+          type: string
+        source_site:
+          type: string
+          description: Значение из запроса (как передано)
+        source_used:
+          type: string
+          description: |
+            Источник, с которого получен результат:
+            `eis` | `adapter:<host>` | `none`
+          example: eis
+        failed:
+          type: boolean
+          description: true, если анализ не удался или result пуст
+        message:
+          type: string
+          description: Текст ошибки / пояснение при failed=true
+        result:
+          allOf:
+            - $ref: "#/components/schemas/CollectResult"
+          nullable: true
+
+    CollectResult:
+      type: object
+      description: Нормализованная карточка закупки + документы с извлечённым текстом
+      properties:
+        reg_number:
+          type: string
+        law:
+          type: string
+          description: Тип закупки
+          enum: ["44", "223", "pricereq"]
+        object_name:
+          type: string
+          description: Предмет закупки
+        status:
+          type: string
+          description: Этап / статус на площадке
+        nmck:
+          type: number
+          format: double
+          nullable: true
+          description: НМЦК / начальная цена
+        currency:
+          type: string
+          example: RUB
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+        updated_on_site:
+          type: string
+          format: date-time
+          nullable: true
+        application_end:
+          type: string
+          format: date-time
+          nullable: true
+          description: Окончание подачи заявок / приёма ценовой информации
+        customer:
+          $ref: "#/components/schemas/Organization44"
+        customer_223:
+          allOf:
+            - $ref: "#/components/schemas/Organization223"
+          nullable: true
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Сырой снимок парсера:
+            - 44: `{ tender, customer }`
+            - 223: `{ tender, customer }`
+            - pricereq: `{ price_request, customer }`
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocResult"
+
+    DocResult:
+      type: object
+      properties:
+        uid:
+          type: string
+          description: Идентификатор файла в filestore (для архивов — uid/относительный_путь)
+        filename:
+          type: string
+        source_url:
+          type: string
+          format: uri
+        group_title:
+          type: string
+        edition:
+          type: string
+          description: Например «Действующая» / «Недействующая»
+        process_status:
+          type: string
+          enum: [processed, unprocessed]
+        text_content:
+          type: string
+          description: Извлечённый текст документа (если удалось)
+        process_error:
+          type: string
+        content_hash:
+          type: string
+          description: SHA-256 содержимого файла (hex)
+
+    Organization44:
+      type: object
+      description: Карточка организации (модель 44 / общая)
+      properties:
+        organization_code:
+          type: string
+        organization_id:
+          type: string
+        inn:
+          type: string
+        kpp:
+          type: string
+        ogrn:
+          type: string
+        full_name:
+          type: string
+        short_name:
+          type: string
+        svodny_reestr_code:
+          type: string
+        iku:
+          type: string
+        iko:
+          type: string
+        oktmo:
+          type: string
+        address:
+          type: string
+        reg_date_raw:
+          type: string
+        last_change_raw:
+          type: string
+        ownership_code:
+          type: string
+        okopf_code:
+          type: string
+        okpo:
+          type: string
+        level:
+          type: string
+        org_type:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        contact_person:
+          type: string
+        timezone:
+          type: string
+        parent_inn:
+          type: string
+        parent_kpp:
+          type: string
+        parent_name:
+          type: string
+
+    Organization223:
+      type: object
+      description: Карточка организации 223-ФЗ
+      properties:
+        agency_id:
+          type: string
+        inn:
+          type: string
+        kpp:
+          type: string
+        ogrn:
+          type: string
+        full_name:
+          type: string
+        short_name:
+          type: string
+        address:
+          type: string
+        post_address:
+          type: string
+        website:
+          type: string
+        status:
+          type: string
+        level:
+          type: string
+        okpo:
+          type: string
+        okato:
+          type: string
+        okved_main:
+          type: string
+        okved_extra:
+          type: array
+          items:
+            type: string
+        iku:
+          type: string
+        iku_assigned_raw:
+          type: string
+        contact_person:
+          type: string
+        email:
+          type: string
+        purchase_clause_reestr:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
