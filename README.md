@@ -24,19 +24,28 @@ curl -s -X POST http://127.0.0.1:8091/api/v1/fetch \
 
 ## Search service (`cmd/search`)
 
-UI-compatible microservice for Gateway `SEARCH_URL` (port **8093**).
+UI-совместимый микросервис под Gateway `SEARCH_URL` (контракт из UI «Поисковики»).
 
-- Auth: `POST /api/v1/auth/login` (`demo`/`demo`), `logout`, `me`
-- Searchers CRUD + `.../auto-ai`, `.../run`, `.../tenders`
-- Optional legacy aliases: `/api/v1/search-profiles`
-- OpenAPI / Swagger: `/swagger/` (spec also in `docs/search-openapi.yaml`)
-- Migrations: `migrations/search/` (Postgres via `DATABASE_URL`)
+Порт по умолчанию: **8093**.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/api/v1/auth/login` | `demo` / `demo` → Bearer token |
+| GET/POST | `/api/v1/searchers` | список / создание настройки |
+| PUT | `/api/v1/searchers/{id}/auto-ai` | AI-анализ **на эту** настройку |
+| POST | `/api/v1/searchers/{id}/run` | поиск ЕИС → сохранение хитов → fetch/analyze |
+| GET | `/api/v1/searchers/{id}/tenders` | тендеры выбранного поиска |
+
+Поток: сохранить настройку → `run` → новые `reg_number` уходят в `PARSER_URL` (обработка документов); при `auto_ai=true` после появления карточки в core ставится AI-анализ.
 
 ```bash
 export DATABASE_URL='postgres://zakupki:zakupki@localhost:5432/zakupki_search?sslmode=disable'
-export PARSER_URL='http://127.0.0.1:8091'   # optional deep fetch for new hits
-export CORE_URL='http://127.0.0.1:8092'     # optional tender enrichment
+export PARSER_URL='http://127.0.0.1:8091'
+export CORE_URL='http://127.0.0.1:8080'
+export HTTP_ADDR=':8093'
 go run ./cmd/search
+# Swagger: http://127.0.0.1:8093/swagger/
+# Gateway: SEARCH_URL=http://127.0.0.1:8093
 ```
 
 ## Как добавить площадку

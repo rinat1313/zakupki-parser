@@ -34,8 +34,10 @@ func main() {
 	})
 	mux.HandleFunc("POST /api/v1/fetch", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			RegNumber  string `json:"reg_number"`
-			SourceSite string `json:"source_site"`
+			RegNumber       string `json:"reg_number"`
+			SourceSite      string `json:"source_site"`
+			SearchProfileID string `json:"search_profile_id"`
+			AutoAI          bool   `json:"auto_ai"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
@@ -47,12 +49,14 @@ func main() {
 		}
 		out := pipe.Resolve(r.Context(), req.RegNumber, req.SourceSite)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"reg_number":     req.RegNumber,
-			"source_site":    req.SourceSite,
-			"source_used":    out.SourceUsed,
-			"failed":         out.FailedAnalyze || out.Result == nil,
-			"message":        out.Message,
-			"result":         out.Result,
+			"reg_number":        req.RegNumber,
+			"source_site":       req.SourceSite,
+			"search_profile_id": req.SearchProfileID,
+			"auto_ai":           req.AutoAI,
+			"source_used":       out.SourceUsed,
+			"failed":            out.FailedAnalyze || out.Result == nil,
+			"message":           out.Message,
+			"result":            out.Result,
 		})
 	})
 

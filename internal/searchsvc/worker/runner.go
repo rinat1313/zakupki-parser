@@ -107,7 +107,7 @@ func (r *Runner) enrichNewHits(searcher models.Searcher, hits []models.SearchHit
 
 	for _, hit := range hits {
 		if r.Cfg.ParserURL != "" {
-			if err := r.postParserFetch(ctx, hit.RegNumber); err != nil {
+			if err := r.postParserFetch(ctx, searcher, hit.RegNumber); err != nil {
 				r.Log.Printf("parser fetch %s: %v", hit.RegNumber, err)
 			}
 		}
@@ -115,14 +115,23 @@ func (r *Runner) enrichNewHits(searcher models.Searcher, hits []models.SearchHit
 			if err := r.notifyCore(ctx, searcher, hit); err != nil {
 				r.Log.Printf("core notify %s: %v", hit.RegNumber, err)
 			}
+			// AI включается на уровне поисковой настройки: после появления карточки
+			// в core пробуем поставить анализ в очередь.
+			if searcher.AutoAI {
+				if err := r.triggerCoreAnalyze(ctx, hit.RegNumber); err != nil {
+					r.Log.Printf("core analyze %s: %v", hit.RegNumber, err)
+				}
+			}
 		}
 	}
 }
 
-func (r *Runner) postParserFetch(ctx context.Context, regNumber string) error {
-	payload, _ := json.Marshal(map[string]string{
-		"reg_number":  regNumber,
-		"source_site": r.Cfg.EISBaseURL,
+func (r *Runner) postParserFetch(ctx context.Context, searcher models.Searcher, regNumber string) error {
+	payload, _ := json.Marshal(map[string]any{
+		"reg_number":        regNumber,
+		"source_site":       r.Cfg.EISBaseURL,
+		"search_profile_id": searcher.ID,
+		"auto_ai":           searcher.AutoAI,
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.Cfg.ParserURL+"/api/v1/fetch", bytes.NewReader(payload))
 	if err != nil {
@@ -144,13 +153,14 @@ func (r *Runner) postParserFetch(ctx context.Context, regNumber string) error {
 func (r *Runner) notifyCore(ctx context.Context, searcher models.Searcher, hit models.SearchHit) error {
 	// Best-effort: POST ingest-style payload if core exposes it; otherwise no-op list probe.
 	payload, _ := json.Marshal(map[string]any{
-		"reg_number":  hit.RegNumber,
-		"source_site": r.Cfg.EISBaseURL,
-		"object_name": hit.ObjectName,
-		"notice_url":  hit.NoticeURL,
-		"law":         hit.Law,
-		"searcher_id": searcher.ID,
-		"auto_ai":     searcher.AutoAI,
+		"reg_number":        hit.RegNumber,
+		"source_site":       r.Cfg.EISBaseURL,
+		"object_name":       hit.ObjectName,
+		"notice_url":        hit.NoticeURL,
+		"law":               hit.Law,
+		"search_profile_id": searcher.ID,
+		"searcher_id":       searcher.ID,
+		"auto_ai":           searcher.AutoAI,
 	})
 	url := r.Cfg.CoreURL + "/api/v1/tenders"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
@@ -172,6 +182,68 @@ func (r *Runner) notifyCore(ctx context.Context, searcher models.Searcher, hit m
 		return fmt.Errorf("core HTTP %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func (r *Runner) triggerCoreAnalyze(ctx context.Context, reg string) error {
+	id, ok := r.lookupCoreTenderID(ctx, reg)
+	if !ok || id == "" {
+		return nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		r.Cfg.CoreURL+"/api/v1/tenders/"+id+"/analyze", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := r.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusConflict {
+		return nil
+	}
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("analyze HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (r *Runner) lookupCoreTenderID(ctx context.Context, reg string) (string, bool) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		r.Cfg.CoreURL+"/api/v1/tenders?q="+urlQueryEscape(reg), nil)
+	if err != nil {
+		return "", false
+	}
+	resp, err := r.HTTP.Do(req)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return "", false
+	}
+	var list []map[string]any
+	if err := json.Unmarshal(body, &list); err != nil {
+		var wrap struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err2 := json.Unmarshal(body, &wrap); err2 != nil {
+			return "", false
+		}
+		list = wrap.Items
+	}
+	for _, item := range list {
+		if strField(item, "reg_number") != reg {
+			continue
+		}
+		if id := strField(item, "id"); id != "" {
+			return id, true
+		}
+	}
+	return "", false
 }
 
 // EnrichTendersFromCore fills progress fields from CORE_URL when available.
