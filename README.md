@@ -6,7 +6,7 @@ Go-сервис парсинга закупок с **разных торговы
 - **ЕИС** (`zakupki.gov.ru`) — полноценный адаптер (44/223/pricereq)
 - остальные ЭТП — stub-адаптеры (tektorg, mos, roseltorg, …), расширяются в `internal/adapter`
 
-## API
+## API (parser)
 
 | Метод | Путь | Описание |
 |-------|------|----------|
@@ -20,6 +20,32 @@ go run ./cmd/service
 curl -s -X POST http://127.0.0.1:8091/api/v1/fetch \
   -H 'Content-Type: application/json' \
   -d '{"reg_number":"0334500000125000001","source_site":"https://zakupki.gov.ru"}'
+```
+
+## Search service (`cmd/search`)
+
+UI-совместимый микросервис под Gateway `SEARCH_URL` (контракт из UI «Поисковики»).
+
+Порт по умолчанию: **8093**.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/api/v1/auth/login` | `demo` / `demo` → Bearer token |
+| GET/POST | `/api/v1/searchers` | список / создание настройки |
+| PUT | `/api/v1/searchers/{id}/auto-ai` | AI-анализ **на эту** настройку |
+| POST | `/api/v1/searchers/{id}/run` | поиск ЕИС → сохранение хитов → fetch/analyze |
+| GET | `/api/v1/searchers/{id}/tenders` | тендеры выбранного поиска |
+
+Поток: сохранить настройку → `run` → новые `reg_number` уходят в `PARSER_URL` (обработка документов); при `auto_ai=true` после появления карточки в core ставится AI-анализ.
+
+```bash
+export DATABASE_URL='postgres://zakupki:zakupki@localhost:5432/zakupki_search?sslmode=disable'
+export PARSER_URL='http://127.0.0.1:8091'
+export CORE_URL='http://127.0.0.1:8080'
+export HTTP_ADDR=':8093'
+go run ./cmd/search
+# Swagger: http://127.0.0.1:8093/swagger/
+# Gateway: SEARCH_URL=http://127.0.0.1:8093
 ```
 
 ## Как добавить площадку

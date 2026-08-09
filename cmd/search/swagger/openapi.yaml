@@ -1,0 +1,389 @@
+openapi: 3.0.3
+info:
+  title: zakupki-search API
+  description: |
+    UI-compatible search microservice (searchers + auth).
+
+    Demo user: `demo` / `demo`.
+
+    Gateway proxies `/api/v1/auth/*` and `/api/v1/searchers*` to this service (`SEARCH_URL`).
+  version: 0.1.0
+  contact:
+    name: zakupki-platform
+    url: https://github.com/rinat1313/zakupki-parser
+
+servers:
+  - url: http://localhost:8093
+    description: Local development
+  - url: http://search:8093
+    description: Docker compose service name
+
+tags:
+  - name: health
+  - name: auth
+  - name: searchers
+  - name: search-profiles
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  service: { type: string, example: zakupki-search }
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Login
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login: { type: string }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: Current user
+      operationId: me
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /api/v1/searchers:
+    get:
+      tags: [searchers]
+      summary: List searchers
+      operationId: listSearchers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Searcher"
+    post:
+      tags: [searchers]
+      summary: Create searcher
+      operationId: createSearcher
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearcherWrite"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Searcher"
+
+  /api/v1/searchers/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UUID"
+    get:
+      tags: [searchers]
+      summary: Get searcher
+      operationId: getSearcher
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Searcher"
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [searchers]
+      summary: Update searcher
+      operationId: updateSearcher
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearcherWrite"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Searcher"
+    delete:
+      tags: [searchers]
+      summary: Delete searcher
+      operationId: deleteSearcher
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /api/v1/searchers/{id}/auto-ai:
+    put:
+      tags: [searchers]
+      summary: Toggle auto-AI
+      operationId: setSearcherAutoAI
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Searcher"
+
+  /api/v1/searchers/{id}/run:
+    post:
+      tags: [searchers]
+      summary: Run EIS search
+      operationId: runSearcher
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearcherRun"
+
+  /api/v1/searchers/{id}/tenders:
+    get:
+      tags: [searchers]
+      summary: List tenders found by searcher
+      operationId: listSearcherTenders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UUID"
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TenderCard"
+
+  /api/v1/search-profiles:
+    get:
+      tags: [search-profiles]
+      summary: Legacy list (maps to searchers)
+      operationId: listSearchProfiles
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    UUID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        login: { type: string }
+        name: { type: string }
+        display_name: { type: string }
+
+    SearcherConfig:
+      type: object
+      properties:
+        search_string: { type: string }
+        morphology: { type: boolean, default: true }
+        strict_equal: { type: boolean, default: false }
+        fz44: { type: boolean, default: true }
+        fz223: { type: boolean, default: true }
+        pp_rf615: { type: boolean, default: false }
+        stage_af: { type: boolean, default: true }
+        stage_ca: { type: boolean, default: true }
+        stage_pc: { type: boolean }
+        stage_pa: { type: boolean }
+        publish_date_from: { type: string, nullable: true }
+        publish_date_to: { type: string, nullable: true }
+        appl_submission_close_date_from: { type: string, nullable: true }
+        appl_submission_close_date_to: { type: string, nullable: true }
+        price_from: { type: number, nullable: true }
+        price_to: { type: number, nullable: true }
+        currency_code: { type: string, example: RUB }
+        okpd2_codes: { type: string }
+        okpd2_with_nested: { type: boolean, default: true }
+        okpd2_several: { type: boolean }
+        customer_title: { type: string }
+        placing_way_list: { type: string }
+        smp_sono: { type: boolean }
+        joint_purchase: { type: boolean }
+        sort_by:
+          type: string
+          enum: [UPDATE_DATE, PUBLISH_DATE, PRICE, RELEVANCE]
+          default: UPDATE_DATE
+        sort_direction: { type: boolean, default: false }
+        records_per_page:
+          type: integer
+          enum: [10, 20, 50]
+          default: 50
+
+    Searcher:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        config:
+          $ref: "#/components/schemas/SearcherConfig"
+        auto_ai: { type: boolean }
+        tenders_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        last_run_at: { type: string, format: date-time, nullable: true }
+
+    SearcherWrite:
+      type: object
+      required: [name, config]
+      properties:
+        name: { type: string }
+        config:
+          $ref: "#/components/schemas/SearcherConfig"
+        auto_ai: { type: boolean }
+
+    SearcherRun:
+      type: object
+      properties:
+        run_id: { type: string, format: uuid }
+        searcher_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [queued, running, done, error]
+        found_count: { type: integer }
+        message: { type: string }
+
+    TenderCard:
+      type: object
+      properties:
+        reg_number: { type: string }
+        object_name: { type: string }
+        application_end: { type: string }
+        nmck: { type: number, nullable: true }
+        docs_with_text: { type: integer }
+        docs_total: { type: integer }
+        collect_pct: { type: integer }
+        ai_pct: { type: integer }
+        analysis_status:
+          type: string
+          enum: [none, analyzing, analyzed, delete, irrelevant, past, other]
+        recommendation:
+          type: string
+          enum: [participate, caution, skip, unknown]
+        card_tone:
+          type: string
+          enum: [good, bad, pending, neutral]
