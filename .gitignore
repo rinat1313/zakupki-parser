@@ -3,3 +3,5 @@ bin/
 result/
 *.exe
 .env
+search
+/search
