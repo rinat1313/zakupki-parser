@@ -25,31 +25,31 @@ import (
 )
 
 type DocResult struct {
-	UID           string
-	Filename      string
-	SourceURL     string
-	GroupTitle    string
-	Edition       string
-	ProcessStatus string // processed | unprocessed
-	TextContent   string
-	ProcessError  string
-	ContentHash   string
+	UID           string `json:"uid"`
+	Filename      string `json:"filename"`
+	SourceURL     string `json:"source_url"`
+	GroupTitle    string `json:"group_title,omitempty"`
+	Edition       string `json:"edition,omitempty"`
+	ProcessStatus string `json:"process_status"` // processed | unprocessed
+	TextContent   string `json:"text_content,omitempty"`
+	ProcessError  string `json:"process_error,omitempty"`
+	ContentHash   string `json:"content_hash,omitempty"`
 }
 
 type Result struct {
-	RegNumber      string
-	Law            string
-	ObjectName     string
-	Status         string
-	NMCK           *float64
-	Currency       string
-	PublishedAt    *time.Time
-	UpdatedOnSite  *time.Time
-	ApplicationEnd *time.Time
-	Customer       models.Organization44
-	Customer223    *models.Organization223
-	Payload        json.RawMessage
-	Documents      []DocResult
+	RegNumber      string                     `json:"reg_number"`
+	Law            string                     `json:"law"`
+	ObjectName     string                     `json:"object_name"`
+	Status         string                     `json:"status"`
+	NMCK           *float64                   `json:"nmck,omitempty"`
+	Currency       string                     `json:"currency,omitempty"`
+	PublishedAt    *time.Time                 `json:"published_at,omitempty"`
+	UpdatedOnSite  *time.Time                 `json:"updated_on_site,omitempty"`
+	ApplicationEnd *time.Time                 `json:"application_end,omitempty"`
+	Customer       models.Organization44      `json:"customer"`
+	Customer223    *models.Organization223    `json:"customer_223,omitempty"`
+	Payload        json.RawMessage            `json:"payload,omitempty"`
+	Documents      []DocResult                `json:"documents"`
 }
 
 type Collector struct {

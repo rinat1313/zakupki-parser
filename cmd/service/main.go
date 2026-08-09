@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"embed"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +15,9 @@ import (
 	"github.com/rinat1313/zakupki-parser/internal/adapter"
 	"github.com/rinat1313/zakupki-parser/pkg/collect"
 )
+
+//go:embed swagger
+var swaggerFS embed.FS
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -27,8 +32,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"status":  "ok",
-			"service": "zakupki-parser",
+			"status":   "ok",
+			"service":  "zakupki-parser",
 			"adapters": adapterHosts(),
 		})
 	})
@@ -47,14 +52,15 @@ func main() {
 		}
 		out := pipe.Resolve(r.Context(), req.RegNumber, req.SourceSite)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"reg_number":     req.RegNumber,
-			"source_site":    req.SourceSite,
-			"source_used":    out.SourceUsed,
-			"failed":         out.FailedAnalyze || out.Result == nil,
-			"message":        out.Message,
-			"result":         out.Result,
+			"reg_number":  req.RegNumber,
+			"source_site": req.SourceSite,
+			"source_used": out.SourceUsed,
+			"failed":      out.FailedAnalyze || out.Result == nil,
+			"message":     out.Message,
+			"result":      out.Result,
 		})
 	})
+	registerSwagger(mux)
 
 	addr := os.Getenv("HTTP_ADDR")
 	if addr == "" {
@@ -62,7 +68,7 @@ func main() {
 	}
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
-		log.Printf("zakupki-parser listening on %s", addr)
+		log.Printf("zakupki-parser listening on %s (swagger: /swagger/)", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
@@ -71,6 +77,22 @@ func main() {
 	shCtx, c := context.WithTimeout(context.Background(), 10*time.Second)
 	defer c()
 	_ = srv.Shutdown(shCtx)
+}
+
+func registerSwagger(mux *http.ServeMux) {
+	sub, err := fs.Sub(swaggerFS, "swagger")
+	if err != nil {
+		log.Printf("swagger embed: %v", err)
+		return
+	}
+	fileServer := http.FileServer(http.FS(sub))
+	mux.Handle("GET /swagger/", http.StripPrefix("/swagger/", fileServer))
+	mux.HandleFunc("GET /swagger", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)
+	})
+	mux.HandleFunc("GET /openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, sub, "openapi.yaml")
+	})
 }
 
 func adapterHosts() []string {
