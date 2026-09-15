@@ -82,7 +82,7 @@ func main() {
 		}
 	}()
 	<-ctx.Done()
-	shCtx, c := context.WithTimeout(context.Background(), 10*time.Second)
+	shCtx, c := context.WithTimeout(context.Background(), extractapi.ShutdownTimeout())
 	defer c()
 	_ = srv.Shutdown(shCtx)
 }

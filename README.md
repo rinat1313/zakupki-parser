@@ -21,6 +21,10 @@ go run ./cmd/service
 curl -s -X POST http://127.0.0.1:8091/api/v1/fetch \
   -H 'Content-Type: application/json' \
   -d '{"reg_number":"0334500000125000001","source_site":"https://zakupki.gov.ru"}'
+
+# extract: клиентский timeout ≥ 5–6 минут (OCR/LibreOffice)
+curl -s -m 360 -X POST http://127.0.0.1:8091/api/v1/extract \
+  -F 'file=@./document.pdf'
 ```
 
 ## Search service (`cmd/search`)

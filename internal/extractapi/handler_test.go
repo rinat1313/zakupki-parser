@@ -102,6 +102,29 @@ func TestHandlerHTMLSuccess(t *testing.T) {
 	}
 }
 
+func TestHandlerEmptyTXTFails(t *testing.T) {
+	rec := doUpload(t, "empty.txt", "   \n\t")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d", rec.Code)
+	}
+	var got Response
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status {
+		t.Fatal("expected status false for empty text")
+	}
+	if got.Filename != "empty.txt" {
+		t.Fatalf("filename=%q", got.Filename)
+	}
+}
+
+func TestShutdownTimeoutCoversProcessing(t *testing.T) {
+	if ShutdownTimeout() < time.Duration(ProcessingMaxSeconds)*time.Second {
+		t.Fatalf("shutdown=%v", ShutdownTimeout())
+	}
+}
+
 func doUpload(t *testing.T, filename, content string) *httptest.ResponseRecorder {
 	t.Helper()
 	var buf bytes.Buffer
