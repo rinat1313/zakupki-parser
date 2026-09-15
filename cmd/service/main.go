@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/rinat1313/zakupki-parser/internal/adapter"
+	"github.com/rinat1313/zakupki-parser/internal/extractapi"
 	"github.com/rinat1313/zakupki-parser/pkg/collect"
 )
 
@@ -59,12 +60,21 @@ func main() {
 			"result":            out.Result,
 		})
 	})
+	mux.Handle("POST /api/v1/extract", extractapi.Handler())
 
 	addr := os.Getenv("HTTP_ADDR")
 	if addr == "" {
 		addr = ":8091"
 	}
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	readHeader, read, write, idle := extractapi.ServerTimeouts()
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: readHeader,
+		ReadTimeout:       read,
+		WriteTimeout:      write,
+		IdleTimeout:       idle,
+	}
 	go func() {
 		log.Printf("zakupki-parser listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

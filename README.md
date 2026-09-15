@@ -12,6 +12,7 @@ Go-сервис парсинга закупок с **разных торговы
 |-------|------|----------|
 | GET | `/health` | liveness |
 | POST | `/api/v1/fetch` | `{ "reg_number", "source_site" }` → карточка + документы + тексты |
+| POST | `/api/v1/extract` | `multipart/form-data` поле `file` → `{ "status", "filename", "body" }` (обработка до ~5 мин) |
 
 Порт по умолчанию: **8091**.
 
