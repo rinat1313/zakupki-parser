@@ -29,6 +29,11 @@ var SupportedExtensions = map[string]bool{
 	".xml":  true,
 	".html": true,
 	".htm":  true,
+	".png":  true,
+	".jpg":  true,
+	".jpeg": true,
+	".tif":  true,
+	".tiff": true,
 }
 
 // Result результат конвертации одного файла.
@@ -186,6 +191,10 @@ func ToTextOut(sourcePath, txtPath string) Result {
 				res.Error = "ocr: " + r.Error
 			}
 		}
+	}
+
+	if isImageExt(ext) {
+		return tryImageOCR(abs, txtAbs)
 	}
 
 	// DOCX: сначала native ZIP/XML (полное тело + таблицы), затем LibreOffice; берём более полный.

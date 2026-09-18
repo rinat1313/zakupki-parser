@@ -39,7 +39,7 @@ func TestHandlerMissingFile(t *testing.T) {
 }
 
 func TestHandlerUnsupportedExtension(t *testing.T) {
-	rec := doUpload(t, "photo.png", "not-a-real-image")
+	rec := doUpload(t, "photo.gif", "not-a-real-image")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("code=%d", rec.Code)
 	}
@@ -50,7 +50,7 @@ func TestHandlerUnsupportedExtension(t *testing.T) {
 	if got.Status {
 		t.Fatal("expected status false")
 	}
-	if got.Filename != "photo.png" {
+	if got.Filename != "photo.gif" {
 		t.Fatalf("filename=%q", got.Filename)
 	}
 	if got.Body != "" {

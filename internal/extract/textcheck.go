@@ -114,7 +114,53 @@ func detailHint(engine string) string {
 	}
 }
 
-// tryPDFOCR: pdftoppm → tesseract (rus+eng) по страницам.
+func isImageExt(ext string) bool {
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".tif", ".tiff":
+		return true
+	default:
+		return false
+	}
+}
+
+func tryImageOCR(imagePath, txtPath string) Result {
+	res := Result{SourcePath: imagePath, TextPath: txtPath, Engine: "ocr"}
+	tesseract, err := exec.LookPath("tesseract")
+	if err != nil {
+		res.Error = "tesseract not found (brew install tesseract tesseract-lang)"
+		return res
+	}
+	tmp, err := os.MkdirTemp("", "eis-img-ocr-*")
+	if err != nil {
+		res.Error = err.Error()
+		return res
+	}
+	defer os.RemoveAll(tmp)
+
+	outBase := filepath.Join(tmp, "ocr")
+	lang := "rus+eng"
+	cmd := exec.Command(tesseract, imagePath, outBase, "-l", lang, "--psm", "3")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		cmd = exec.Command(tesseract, imagePath, outBase, "-l", "eng", "--psm", "3")
+		if out2, err2 := cmd.CombinedOutput(); err2 != nil {
+			res.Error = fmt.Sprintf("tesseract: %v (%s; %s)", err2,
+				strings.TrimSpace(string(out)), strings.TrimSpace(string(out2)))
+			return res
+		}
+	}
+	b, err := os.ReadFile(outBase + ".txt")
+	if err != nil {
+		res.Error = err.Error()
+		return res
+	}
+	joined := strings.TrimSpace(string(b))
+	if err := os.WriteFile(txtPath, []byte(joined+"\n"), 0o644); err != nil {
+		res.Error = err.Error()
+		return res
+	}
+	return checkUsefulOrFail(&res)
+}
+
 func tryPDFOCR(pdfPath, txtPath string) Result {
 	res := Result{SourcePath: pdfPath, TextPath: txtPath, Engine: "ocr"}
 
