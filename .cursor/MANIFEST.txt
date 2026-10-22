@@ -1,0 +1,5 @@
+source: rinat1313/NewGeneratorOPCUA origin/main
+date: 2026-10-22
+skills: 17
+rules: 8
+agents: 16
