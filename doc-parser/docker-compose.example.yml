@@ -1,0 +1,12 @@
+services:
+  doc-parser:
+    build:
+      context: ..
+      dockerfile: doc-parser/Dockerfile
+    ports:
+      - "8094:8094"
+    environment:
+      DOC_PARSER_API_KEY: change-me
+      HTTP_ENABLED: "true"
+      KAFKA_ENABLED: "false"
+      HTTP_ADDR: ":8094"
