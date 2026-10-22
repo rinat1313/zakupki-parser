@@ -1,0 +1,30 @@
+---
+description: Каноническая ветка для rules, skills и subagents — origin/main
+alwaysApply: true
+---
+
+# Cursor-конфиг только в main
+
+Единственная актуальная ветка для `.cursor/rules`, `.cursor/skills` и `.cursor/agents` — **`main`** (`origin/main`). Snapshot облачного агента может отставать.
+
+## Перед чтением конфига
+
+Если работа касается ТЗ, workflow, skills, rules или subagents:
+
+1. `git fetch origin main`
+2. Если локальный `HEAD` отстаёт от `origin/main` по `.cursor/` — бери файлы с `origin/main` (`git checkout origin/main -- .cursor/skills .cursor/rules .cursor/agents` или `git pull origin main`, если ты уже на `main` и дерево чистое).
+3. Не опирайся на checkout snapshot, если в `origin/main` уже есть более новые skills.
+
+## Куда писать новое
+
+Новые и изменённые **rules**, **skills** и **subagents** добавляй так, чтобы они попали в **`origin/main`**:
+
+- Предпочтительно: коммит **напрямую в `main`** (после `git pull origin main`).
+- Если облачная сессия требует feature-ветку: ветка от **свежего** `origin/main`, затем сразу merge и `git push origin main`. Не оставляй конфиг только в `cursor/*`.
+- Не клади актуальные skills в отдельную «архивную» или backup-ветку вместо `main`.
+
+## Запрещено
+
+- Считать задачу по skill/rule/agent закрытой, пока файлов нет в `origin/main`.
+- Читать этапные skills только из устаревшего локального snapshot.
+- Разводить параллельные «истинные» копии `.cursor/` на нескольких ветках.
