@@ -53,6 +53,21 @@ go run ./cmd/search
 # Gateway: SEARCH_URL=http://127.0.0.1:8093
 ```
 
+## doc-parser (`cmd/docparser`)
+
+Выделенный микросервис **документ → текст** (PDF, Office, таблицы, изображения с OCR). Порт **8094**, Bearer-ключ `DOC_PARSER_API_KEY` / `API_KEY`. Файлы не сохраняет на диск.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/health`, `/openapi.yaml` | без авторизации |
+| POST | `/api/v1/extract` | `multipart` поле `file` → JSON с `body` |
+| GET/PUT | `/api/v1/channels` | флаги `http_ingest` / `kafka_ingest` |
+
+Сборка Docker из корня: `docker build -f doc-parser/Dockerfile .`  
+Подробно для интеграторов (n8n, Kafka, лимиты 50 МБ / 5 мин): **[doc-parser/README.md](doc-parser/README.md)**.
+
+Extract на порту **8091** у основного parser — **другой сервис**, контракт не менялся.
+
 ## Как добавить площадку
 
 1. Реализуйте `adapter.Adapter` (`Hosts`, `Fetch`) в `internal/adapter/<site>/`.
