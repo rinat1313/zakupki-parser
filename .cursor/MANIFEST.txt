@@ -1,0 +1,7 @@
+source: rinat1313/create_sheme origin/main (cursor-pack)
+installed-from: cursor-pack (FOR-NEW-AGENT.md + MANIFEST)
+date: 2026-10-22
+skills: 16
+rules: 7
+agents: 16
+note: project.mdc and update-user-help.mdc adapted for zakupki-parser stack; backup not copied
