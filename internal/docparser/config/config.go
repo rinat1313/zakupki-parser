@@ -27,17 +27,18 @@ func FromEnv() Config {
 		key = os.Getenv("API_KEY")
 	}
 	brokers := splitBrokers(os.Getenv("KAFKA_BROKERS"))
+	kafkaOn := envBool("KAFKA_ENABLED", false)
 	return Config{
 		HTTPAddr:      env("HTTP_ADDR", ":8094"),
 		APIKey:        key,
 		LogLevel:      env("LOG_LEVEL", "info"),
-		KafkaEnabled:  envBool("KAFKA_ENABLED", false),
+		KafkaEnabled:  kafkaOn,
 		KafkaBrokers:  brokers,
 		KafkaTopicIn:  env("KAFKA_TOPIC_IN", "docparser.extract.in"),
 		KafkaTopicOut: env("KAFKA_TOPIC_OUT", "docparser.extract.out"),
 		KafkaGroupID:  env("KAFKA_GROUP_ID", "docparser"),
-		HTTPIngest:    envBool("HTTP_INGEST_ENABLED", true),
-		KafkaIngest:   envBool("KAFKA_INGEST_ENABLED", false),
+		HTTPIngest:    envBoolFirst([]string{"HTTP_INGEST_ENABLED", "HTTP_ENABLED"}, true),
+		KafkaIngest:   envBoolFirst([]string{"KAFKA_INGEST_ENABLED", "KAFKA_ENABLED"}, false),
 	}
 }
 
@@ -60,11 +61,18 @@ func env(k, def string) string {
 }
 
 func envBool(k string, def bool) bool {
-	v := strings.ToLower(strings.TrimSpace(os.Getenv(k)))
-	if v == "" {
-		return def
+	return envBoolFirst([]string{k}, def)
+}
+
+func envBoolFirst(keys []string, def bool) bool {
+	for _, k := range keys {
+		v := strings.ToLower(strings.TrimSpace(os.Getenv(k)))
+		if v == "" {
+			continue
+		}
+		return v == "1" || v == "true" || v == "yes"
 	}
-	return v == "1" || v == "true" || v == "yes"
+	return def
 }
 
 func splitBrokers(s string) []string {

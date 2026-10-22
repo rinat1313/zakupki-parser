@@ -95,6 +95,9 @@ func TestRunnerProcessesMessage(t *testing.T) {
 	if out.CorrelationID != "corr-1" || !out.Status {
 		t.Fatalf("out=%+v", out)
 	}
+	if string(writer.sent[0].Key) != "corr-1" {
+		t.Fatalf("key=%q", writer.sent[0].Key)
+	}
 }
 
 func TestValidateEnabled(t *testing.T) {

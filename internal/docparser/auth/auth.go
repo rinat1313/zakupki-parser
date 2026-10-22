@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"net/http"
 	"strings"
@@ -19,7 +20,9 @@ func ValidBearer(header string, expected string) bool {
 	if token == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(token), []byte(expected)) == 1
+	got := sha256.Sum256([]byte(token))
+	want := sha256.Sum256([]byte(expected))
+	return subtle.ConstantTimeCompare(got[:], want[:]) == 1
 }
 
 func Middleware(expected string, next http.Handler) http.Handler {

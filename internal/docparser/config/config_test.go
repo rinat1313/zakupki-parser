@@ -31,6 +31,16 @@ func TestAPIKeyFallback(t *testing.T) {
 	}
 }
 
+func TestHTTPEnabledAlias(t *testing.T) {
+	os.Unsetenv("HTTP_INGEST_ENABLED")
+	os.Setenv("HTTP_ENABLED", "false")
+	defer os.Unsetenv("HTTP_ENABLED")
+	cfg := FromEnv()
+	if cfg.HTTPIngest {
+		t.Fatal("expected HTTP_ENABLED=false to disable ingest")
+	}
+}
+
 func TestSplitBrokers(t *testing.T) {
 	os.Setenv("KAFKA_BROKERS", "a:9092, b:9092")
 	defer os.Unsetenv("KAFKA_BROKERS")

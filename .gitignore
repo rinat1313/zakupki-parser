@@ -4,3 +4,4 @@ result/
 *.exe
 .env
 /search
+/docparser

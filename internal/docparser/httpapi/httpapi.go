@@ -60,16 +60,38 @@ func (s *Server) handleGetChannels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePutChannels(w http.ResponseWriter, r *http.Request) {
-	var body channels.State
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if err := s.channels.Set(body); err != nil {
+	cur := s.channels.Get()
+	if v, ok := boolField(raw, "http_ingest", "http"); ok {
+		cur.HTTPIngest = v
+	}
+	if v, ok := boolField(raw, "kafka_ingest", "kafka"); ok {
+		cur.KafkaIngest = v
+	}
+	if err := s.channels.Set(cur); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, s.channels.Get())
+}
+
+func boolField(raw map[string]json.RawMessage, keys ...string) (bool, bool) {
+	for _, k := range keys {
+		b, ok := raw[k]
+		if !ok {
+			continue
+		}
+		var v bool
+		if err := json.Unmarshal(b, &v); err != nil {
+			continue
+		}
+		return v, true
+	}
+	return false, false
 }
 
 func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request) {
@@ -140,7 +162,7 @@ func (s *Server) handleExtract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if res.Error != "" && !res.Status {
-		writeJSON(w, http.StatusOK, res)
+		writeJSON(w, http.StatusUnprocessableEntity, res)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)

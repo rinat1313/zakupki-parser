@@ -107,6 +107,30 @@ func TestExtractTimeoutStatus(t *testing.T) {
 	}
 }
 
+func TestExtractEngineErrorUnprocessable(t *testing.T) {
+	cfg := config.Config{APIKey: "test-key"}
+	store := channels.NewStore(channels.State{HTTPIngest: true}, func() bool { return true })
+	s := New(cfg, store, fakeExtractor{res: core.Result{Error: "extract failed", Status: false}})
+	rec := doUpload(s, "sample.txt", "hello")
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("code=%d", rec.Code)
+	}
+}
+
+func TestChannelsPutHTTPAlias(t *testing.T) {
+	s := testServer(channels.State{HTTPIngest: true})
+	body := strings.NewReader(`{"http":false,"kafka":false}`)
+	req := authReq(http.MethodPut, "/api/v1/channels", body)
+	rec := httptest.NewRecorder()
+	s.Mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if s.channels.Get().HTTPIngest {
+		t.Fatal("http should be off")
+	}
+}
+
 func TestChannelsPutKafkaNoBrokers(t *testing.T) {
 	cfg := config.Config{APIKey: "test-key"}
 	store := channels.NewStore(channels.State{HTTPIngest: true}, func() bool { return false })

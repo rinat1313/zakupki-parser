@@ -115,6 +115,9 @@ func (r *Runner) handleMessage(ctx context.Context, msg kafka.Message) error {
 	if err != nil {
 		return err
 	}
+	if in.CorrelationID == "" {
+		in.CorrelationID = core.NewCorrelationID()
+	}
 	procCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	res := r.extractor.Extract(procCtx, in.Filename, data, in.CorrelationID)
@@ -130,7 +133,10 @@ func (r *Runner) handleMessage(ctx context.Context, msg kafka.Message) error {
 	if err != nil {
 		return err
 	}
-	return r.writer.WriteMessages(ctx, kafka.Message{Value: payload})
+	return r.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(out.CorrelationID),
+		Value: payload,
+	})
 }
 
 func sleepContext(ctx context.Context, d time.Duration) error {

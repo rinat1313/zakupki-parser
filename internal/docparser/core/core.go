@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,6 +38,9 @@ type DefaultExtractor struct{}
 func (DefaultExtractor) Extract(ctx context.Context, filename string, data []byte, correlationID string) Result {
 	start := time.Now()
 	logsetup.LogStart("Extract", "filename", filename, "correlation_id", correlationID)
+	if correlationID == "" {
+		correlationID = NewCorrelationID()
+	}
 	out := Result{Filename: filename, CorrelationID: correlationID}
 
 	name := filepath.Base(filename)
@@ -105,4 +110,12 @@ func (DefaultExtractor) Extract(ctx context.Context, filename string, data []byt
 
 func UnsupportedExtensionErr(ext string) string {
 	return "unsupported extension: " + ext
+}
+
+func NewCorrelationID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b[:])
 }
