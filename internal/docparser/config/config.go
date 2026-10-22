@@ -1,0 +1,84 @@
+package config
+
+import (
+	"errors"
+	"os"
+	"strings"
+)
+
+const ServiceName = "doc-parser"
+
+type Config struct {
+	HTTPAddr       string
+	APIKey         string
+	LogLevel       string
+	KafkaEnabled   bool
+	KafkaBrokers   []string
+	KafkaTopicIn   string
+	KafkaTopicOut  string
+	KafkaGroupID   string
+	HTTPIngest     bool
+	KafkaIngest    bool
+}
+
+func FromEnv() Config {
+	key := os.Getenv("DOC_PARSER_API_KEY")
+	if key == "" {
+		key = os.Getenv("API_KEY")
+	}
+	brokers := splitBrokers(os.Getenv("KAFKA_BROKERS"))
+	return Config{
+		HTTPAddr:      env("HTTP_ADDR", ":8094"),
+		APIKey:        key,
+		LogLevel:      env("LOG_LEVEL", "info"),
+		KafkaEnabled:  envBool("KAFKA_ENABLED", false),
+		KafkaBrokers:  brokers,
+		KafkaTopicIn:  env("KAFKA_TOPIC_IN", "docparser.extract.in"),
+		KafkaTopicOut: env("KAFKA_TOPIC_OUT", "docparser.extract.out"),
+		KafkaGroupID:  env("KAFKA_GROUP_ID", "docparser"),
+		HTTPIngest:    envBool("HTTP_INGEST_ENABLED", true),
+		KafkaIngest:   envBool("KAFKA_INGEST_ENABLED", false),
+	}
+}
+
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.APIKey) == "" {
+		return errors.New("DOC_PARSER_API_KEY or API_KEY is required")
+	}
+	return nil
+}
+
+func (c Config) HasKafkaBrokers() bool {
+	return len(c.KafkaBrokers) > 0
+}
+
+func env(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
+
+func envBool(k string, def bool) bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(k)))
+	if v == "" {
+		return def
+	}
+	return v == "1" || v == "true" || v == "yes"
+}
+
+func splitBrokers(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
