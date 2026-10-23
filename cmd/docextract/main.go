@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/rinat1313/zakupki-parser/internal/docparser/channels"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/config"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/core"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/httpapi"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/kafka"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/logsetup"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/channels"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/config"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/core"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/httpapi"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/kafka"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/logsetup"
 )
 
 func main() {
@@ -66,7 +66,7 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("doc-parser listening", "addr", cfg.HTTPAddr)
+		slog.Info("doc-extract listening", "addr", cfg.HTTPAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("http server failed", "err", err)
 			os.Exit(1)

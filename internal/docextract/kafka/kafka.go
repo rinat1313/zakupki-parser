@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rinat1313/zakupki-parser/internal/docparser/channels"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/core"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/logsetup"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/channels"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/core"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/logsetup"
 	"github.com/segmentio/kafka-go"
 )
 

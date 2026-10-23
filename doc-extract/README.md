@@ -1,33 +1,33 @@
-# doc-parser
+# doc-extract
 
 Отдельный сервис: **документ → текст**. Файлы на диске не хранит — принимает во временную память, обрабатывает и удаляет.
 
-Порт по умолчанию: **8094**. Бинарник: `cmd/docparser`. В контейнере команда `doc-parser`.
+Порт по умолчанию: **8094**. Бинарник: `cmd/docextract`. В контейнере команда `doc-extract`.
 
-> **Не путать с parser (8091).** У основного сервиса zakupki-parser свой `POST /api/v1/extract` на порту **8091** — это другой процесс, его контракт и развёртывание не менялись. Для выделенного extract в Docker-сети используйте **doc-parser:8094**.
+> **Не путать с parser (8091).** У основного сервиса zakupki-parser свой `POST /api/v1/extract` на порту **8091** — это другой процесс, его контракт и развёртывание не менялись. Для выделенного extract в Docker-сети используйте **doc-extract:8094**.
 
 ## Быстрый старт
 
 ### Локально
 
 ```bash
-export DOC_PARSER_API_KEY='ваш-секрет'
+export DOC_EXTRACT_API_KEY='ваш-секрет'
 export HTTP_ADDR=':8094'
-go run ./cmd/docparser
+go run ./cmd/docextract
 ```
 
 ### Docker (из корня репозитория)
 
 ```bash
-docker build -f doc-parser/Dockerfile .
+docker build -f doc-extract/Dockerfile .
 docker run --rm -p 8094:8094 \
-  -e DOC_PARSER_API_KEY='ваш-секрет' \
+  -e DOC_EXTRACT_API_KEY='ваш-секрет' \
   -e HTTP_INGEST_ENABLED=true \
   -e KAFKA_ENABLED=false \
   ваш-образ
 ```
 
-Пример compose: `doc-parser/docker-compose.example.yml`.
+Пример compose: `doc-extract/docker-compose.example.yml`.
 
 ## Доступ и безопасность
 
@@ -37,7 +37,7 @@ docker run --rm -p 8094:8094 \
 | `GET /openapi.yaml` | не нужна |
 | `POST /api/v1/extract`, `GET/PUT /api/v1/channels` | **Bearer** |
 
-Ключ задаётся переменной **`DOC_PARSER_API_KEY`** или **`API_KEY`** (достаточно одной). В запросе:
+Ключ задаётся переменной **`DOC_EXTRACT_API_KEY`**, устаревшим **`DOC_PARSER_API_KEY`** или **`API_KEY`** (достаточно одной). В запросе:
 
 `Authorization: Bearer <ключ>`
 
@@ -96,15 +96,15 @@ JSON с двумя флагами:
 
 | Переменная | По умолчанию | Смысл |
 |------------|--------------|--------|
-| `DOC_PARSER_API_KEY` / `API_KEY` | — | Секрет для Bearer (**обязательно**) |
+| `DOC_EXTRACT_API_KEY` / `DOC_PARSER_API_KEY` / `API_KEY` | — | Секрет для Bearer (**обязательно**; старое имя ключа ещё принимается) |
 | `HTTP_ADDR` | `:8094` | Адрес HTTP-сервера |
 | `HTTP_INGEST_ENABLED` | `true` | HTTP-приём при старте (`http_ingest`) |
 | `KAFKA_ENABLED` | `false` | Подключить клиент Kafka (читатель/писатель) |
 | `KAFKA_INGEST_ENABLED` | `false` | Kafka-приём при старте (`kafka_ingest`) |
 | `KAFKA_BROKERS` | — | Брокеры через запятую, например `kafka:9092` |
-| `KAFKA_TOPIC_IN` | `docparser.extract.in` | Входная очередь |
-| `KAFKA_TOPIC_OUT` | `docparser.extract.out` | Выходная очередь |
-| `KAFKA_GROUP_ID` | `docparser` | Consumer group |
+| `KAFKA_TOPIC_IN` | `docextract.extract.in` | Входная очередь |
+| `KAFKA_TOPIC_OUT` | `docextract.extract.out` | Выходная очередь |
+| `KAFKA_GROUP_ID` | `docextract` | Consumer group |
 | `LOG_LEVEL` | `info` | Уровень логов |
 
 В примерах окружения иногда пишут **`HTTP_ENABLED`** в том же смысле, что включение HTTP; в приложении используется **`HTTP_INGEST_ENABLED`**.
@@ -140,8 +140,8 @@ JSON с двумя флагами:
 
 ## Пример: n8n (HTTP Request)
 
-1. Метод **POST**, URL: `http://doc-parser:8094/api/v1/extract` (в compose-сети — имя сервиса `doc-parser`).
-2. **Authentication**: Header Auth, имя `Authorization`, значение `Bearer <DOC_PARSER_API_KEY>`.
+1. Метод **POST**, URL: `http://doc-extract:8094/api/v1/extract` (в compose-сети — имя сервиса `doc-extract`).
+2. **Authentication**: Header Auth, имя `Authorization`, значение `Bearer <DOC_EXTRACT_API_KEY>`.
 3. **Body**: Form-Data, параметр **`file`**, тип **Binary**, выберите файл.
 4. **Timeout**: **360000** ms.
 
@@ -151,7 +151,7 @@ JSON с двумя флагами:
 
 ```bash
 curl -s -m 360 \
-  -H "Authorization: Bearer $DOC_PARSER_API_KEY" \
+  -H "Authorization: Bearer $DOC_EXTRACT_API_KEY" \
   -F 'file=@./document.pdf' \
   http://127.0.0.1:8094/api/v1/extract
 ```
@@ -166,7 +166,7 @@ curl -s http://127.0.0.1:8094/health
 
 ```mermaid
 flowchart LR
-  Client[Клиент / n8n] -->|POST multipart file| HTTP[doc-parser :8094]
+  Client[Клиент / n8n] -->|POST multipart file| HTTP[doc-extract :8094]
   KafkaIn[Kafka IN topic] --> HTTP
   HTTP --> Text[JSON: body + correlation_id]
   HTTP --> KafkaOut[Kafka OUT topic]

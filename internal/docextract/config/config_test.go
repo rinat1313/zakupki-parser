@@ -6,6 +6,7 @@ import (
 )
 
 func TestFromEnvDefaults(t *testing.T) {
+	os.Unsetenv("DOC_EXTRACT_API_KEY")
 	os.Unsetenv("DOC_PARSER_API_KEY")
 	os.Unsetenv("API_KEY")
 	os.Unsetenv("HTTP_ADDR")
@@ -19,6 +20,7 @@ func TestFromEnvDefaults(t *testing.T) {
 }
 
 func TestAPIKeyFallback(t *testing.T) {
+	os.Unsetenv("DOC_EXTRACT_API_KEY")
 	os.Unsetenv("DOC_PARSER_API_KEY")
 	os.Setenv("API_KEY", "secret-key")
 	defer os.Unsetenv("API_KEY")
@@ -28,6 +30,27 @@ func TestAPIKeyFallback(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExtractAPIKeyPreferred(t *testing.T) {
+	os.Setenv("DOC_EXTRACT_API_KEY", "new-key")
+	os.Setenv("DOC_PARSER_API_KEY", "old-key")
+	defer os.Unsetenv("DOC_EXTRACT_API_KEY")
+	defer os.Unsetenv("DOC_PARSER_API_KEY")
+	cfg := FromEnv()
+	if cfg.APIKey != "new-key" {
+		t.Fatalf("APIKey=%q", cfg.APIKey)
+	}
+}
+
+func TestLegacyParserAPIKey(t *testing.T) {
+	os.Unsetenv("DOC_EXTRACT_API_KEY")
+	os.Setenv("DOC_PARSER_API_KEY", "old-key")
+	defer os.Unsetenv("DOC_PARSER_API_KEY")
+	cfg := FromEnv()
+	if cfg.APIKey != "old-key" {
+		t.Fatalf("APIKey=%q", cfg.APIKey)
 	}
 }
 

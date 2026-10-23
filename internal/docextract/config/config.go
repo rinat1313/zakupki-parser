@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const ServiceName = "doc-parser"
+const ServiceName = "doc-extract"
 
 type Config struct {
 	HTTPAddr       string
@@ -22,7 +22,10 @@ type Config struct {
 }
 
 func FromEnv() Config {
-	key := os.Getenv("DOC_PARSER_API_KEY")
+	key := os.Getenv("DOC_EXTRACT_API_KEY")
+	if key == "" {
+		key = os.Getenv("DOC_PARSER_API_KEY")
+	}
 	if key == "" {
 		key = os.Getenv("API_KEY")
 	}
@@ -34,9 +37,9 @@ func FromEnv() Config {
 		LogLevel:      env("LOG_LEVEL", "info"),
 		KafkaEnabled:  kafkaOn,
 		KafkaBrokers:  brokers,
-		KafkaTopicIn:  env("KAFKA_TOPIC_IN", "docparser.extract.in"),
-		KafkaTopicOut: env("KAFKA_TOPIC_OUT", "docparser.extract.out"),
-		KafkaGroupID:  env("KAFKA_GROUP_ID", "docparser"),
+		KafkaTopicIn:  env("KAFKA_TOPIC_IN", "docextract.extract.in"),
+		KafkaTopicOut: env("KAFKA_TOPIC_OUT", "docextract.extract.out"),
+		KafkaGroupID:  env("KAFKA_GROUP_ID", "docextract"),
 		HTTPIngest:    envBoolFirst([]string{"HTTP_INGEST_ENABLED", "HTTP_ENABLED"}, true),
 		KafkaIngest:   envBoolFirst([]string{"KAFKA_INGEST_ENABLED", "KAFKA_ENABLED"}, false),
 	}
@@ -44,7 +47,7 @@ func FromEnv() Config {
 
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.APIKey) == "" {
-		return errors.New("DOC_PARSER_API_KEY or API_KEY is required")
+		return errors.New("DOC_EXTRACT_API_KEY, DOC_PARSER_API_KEY or API_KEY is required")
 	}
 	return nil
 }

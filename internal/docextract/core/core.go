@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rinat1313/zakupki-parser/internal/docparser/logsetup"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/logsetup"
 	"github.com/rinat1313/zakupki-parser/internal/extract"
 )
 
@@ -54,7 +54,7 @@ func (DefaultExtractor) Extract(ctx context.Context, filename string, data []byt
 		return out
 	}
 
-	tmpDir, err := os.MkdirTemp("", "docparser-extract-*")
+	tmpDir, err := os.MkdirTemp("", "docextract-*")
 	if err != nil {
 		out.Error = err.Error()
 		logsetup.LogDone("Extract", start, err, "filename", filename)

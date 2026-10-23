@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rinat1313/zakupki-parser/internal/docparser/auth"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/channels"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/config"
-	"github.com/rinat1313/zakupki-parser/internal/docparser/core"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/auth"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/channels"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/config"
+	"github.com/rinat1313/zakupki-parser/internal/docextract/core"
 	"github.com/rinat1313/zakupki-parser/internal/extract"
 )
 
@@ -209,7 +209,7 @@ func ShutdownTimeout() time.Duration {
 
 const openAPISpec = `openapi: 3.0.3
 info:
-  title: doc-parser
+  title: doc-extract
   version: 1.0.0
 paths:
   /health:

@@ -31,7 +31,7 @@ alwaysApply: true
 
 ## Микросервисы
 
-Для микросервисов используй Go (`cmd/service`, `cmd/search`, `doc-parser` и др.).
+Для микросервисов используй Go (`cmd/service`, `cmd/search`, `doc-extract` и др.).
 
 ## Frontend
 
